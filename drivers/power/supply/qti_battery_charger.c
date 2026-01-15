@@ -358,6 +358,8 @@ static const char * const qc_power_supply_wls_type_text[] = {
 	"Unknown", "BPP", "EPP", "HPP"
 };
 
+static struct battery_chg_dev *chg_for_tp = NULL;
+
 static RAW_NOTIFIER_HEAD(hboost_notifier);
 
 int register_hboost_event_notifier(struct notifier_block *nb)
@@ -529,6 +531,29 @@ static void battery_chg_notify_disable(struct battery_chg_dev *bcdev)
 	}
 }
 #endif
+
+static bool update_chger_info(struct battery_chg_dev *bcdev)
+{
+    struct psy_state *pst = &bcdev->psy_list[PSY_TYPE_USB];
+    int rc;
+    int charger_tp;
+
+    rc = read_property_id(bcdev, pst, USB_ONLINE);
+    if (rc < 0)
+      return 0;
+
+    charger_tp = pst->prop[USB_ONLINE];
+
+    return charger_tp;
+}
+
+bool is_tp_on(void)
+{
+   if (!chg_for_tp)
+      return 0;
+  return update_chger_info(chg_for_tp);
+}
+EXPORT_SYMBOL_GPL(is_tp_on);
 
 static void battery_chg_notify_enable(struct battery_chg_dev *bcdev)
 {
@@ -2828,6 +2853,7 @@ static int battery_chg_probe(struct platform_device *pdev)
 	battery_chg_notify_enable(bcdev);
 	device_init_wakeup(bcdev->dev, true);
 	schedule_work(&bcdev->usb_type_work);
+	chg_for_tp = bcdev;
 
 	rc = get_charge_control_en(bcdev);
 	if (rc < 0)
