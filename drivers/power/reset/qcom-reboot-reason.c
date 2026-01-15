@@ -46,25 +46,42 @@ static struct poweroff_reason reasons[] = {
 static int qcom_reboot_reason_reboot(struct notifier_block *this,
 				     unsigned long event, void *ptr)
 {
-	char *cmd = ptr;
+	char *cmd = ptr ? ptr : "normal";
 	struct qcom_reboot_reason *reboot = container_of(this,
 		struct qcom_reboot_reason, reboot_nb);
 	struct poweroff_reason *reason;
+	int nvmem_write = 0;
 
-	if (!cmd)
-		return NOTIFY_OK;
+	if (event == SYS_POWER_OFF)
+		cmd = "poweroff";
+
 	for (reason = reasons; reason->cmd; reason++) {
 		if (!strcmp(cmd, reason->cmd)) {
-			if (reboot->nvmem_cell)
+			if (reboot->nvmem_cell) {
 				nvmem_cell_write(reboot->nvmem_cell,
 						 &reason->pon_reason,
 						 sizeof(reason->pon_reason));
-			else
+                nvmem_write = 1;
+			} else {
 				qpnp_pon_set_restart_reason(
 						(enum pon_restart_reason)reason->pon_reason);
+            }
 			break;
 		}
 	}
+
+	if (!nvmem_write) {
+		for (reason = reasons; reason->cmd; reason++) {
+			if (!strcmp("normal", reason->cmd)) {
+				nvmem_cell_write(reboot->nvmem_cell,
+						 &reason->pon_reason,
+						 sizeof(reason->pon_reason));
+				break;
+			}
+		}
+	}
+
+	pr_info("%s: reboot cmd:%s\n", __func__, cmd);
 
 	return NOTIFY_OK;
 }
