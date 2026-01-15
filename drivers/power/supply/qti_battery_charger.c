@@ -58,6 +58,12 @@
 #define WLS_FW_BUF_SIZE			128
 #define DEFAULT_RESTRICT_FCC_UA		1000000
 
+static int batt_info_state_of_health = 0;
+static int batt_info_manufacturing_date = 0;
+static int batt_info_first_usage_date = 0;
+static int batt_info_cycle_count = 0;
+static int batt_info_charge_full = 0;
+
 enum psy_type {
 	PSY_TYPE_BATTERY,
 	PSY_TYPE_USB,
@@ -1395,6 +1401,14 @@ static int battery_psy_get_prop(struct power_supply *psy,
 
 	pval->intval = -ENODATA;
 
+	if (prop == POWER_SUPPLY_PROP_CYCLE_COUNT) {
+		pval->intval = batt_info_cycle_count;
+		return 0;
+	} else if (prop == POWER_SUPPLY_PROP_CHARGE_FULL) {
+		pval->intval = batt_info_charge_full;
+		return 0;
+	}
+
 	/*
 	 * The prop id of TIME_TO_FULL_NOW and TIME_TO_FULL_AVG is same.
 	 * So, map the prop id of TIME_TO_FULL_AVG for TIME_TO_FULL_NOW.
@@ -1416,8 +1430,7 @@ static int battery_psy_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		pval->intval = DIV_ROUND_CLOSEST(pst->prop[prop_id], 100);
-		if (IS_ENABLED(CONFIG_QTI_PMIC_GLINK_CLIENT_DEBUG) &&
-		   (bcdev->fake_soc >= 0 && bcdev->fake_soc <= 100))
+		if (bcdev->fake_soc >= 0 && bcdev->fake_soc <= 100)
 			pval->intval = bcdev->fake_soc;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
@@ -1444,6 +1457,12 @@ static int battery_psy_set_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
 		return battery_psy_set_charge_end_threshold(bcdev,
 								pval->intval);
+	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+		batt_info_cycle_count = pval->intval;
+		return 0;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		batt_info_charge_full = pval->intval;
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -1457,6 +1476,8 @@ static int battery_psy_prop_is_writeable(struct power_supply *psy,
 	switch (prop) {
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD:
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
+	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		return 1;
 	default:
 		break;
@@ -2033,7 +2054,7 @@ static ssize_t fake_soc_store(const struct class *c,
 	bcdev->fake_soc = val;
 	pr_debug("Set fake soc to %d\n", val);
 
-	if (IS_ENABLED(CONFIG_QTI_PMIC_GLINK_CLIENT_DEBUG) && pst->psy)
+	if (pst->psy)
 		power_supply_changed(pst->psy);
 
 	return count;
