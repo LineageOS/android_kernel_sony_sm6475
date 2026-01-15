@@ -96,6 +96,7 @@ enum battery_property_id {
 	BATT_RESISTANCE,
 	BATT_POWER_NOW,
 	BATT_POWER_AVG,
+	BATT_BAT_ID_ADC,
 	BATT_CHG_CTRL_EN,
 	BATT_CHG_CTRL_START_THR,
 	BATT_CHG_CTRL_END_THR,
@@ -2316,6 +2317,39 @@ static ssize_t fac_suspend_show(const struct class *c, const struct class_attrib
 }
 static CLASS_ATTR_RW(fac_suspend);
 
+static ssize_t bat_id_adc_show(const struct class *c, const struct class_attribute *attr,
+                                char *buf)
+{
+        int rc;
+
+        struct battery_chg_dev *bcdev = container_of(c, struct battery_chg_dev,
+                                                battery_class);
+        struct psy_state *pst = &bcdev->psy_list[PSY_TYPE_BATTERY];
+
+        rc = read_property_id(bcdev, pst, BATT_BAT_ID_ADC);
+        if (rc < 0)
+                return rc;
+
+        return scnprintf(buf, PAGE_SIZE, "%d\n", pst->prop[BATT_BAT_ID_ADC]);
+}
+static CLASS_ATTR_RO(bat_id_adc);
+
+static ssize_t charge_full_show(const struct class *c,
+			const struct class_attribute *attr, char *buf)
+{
+	struct battery_chg_dev *bcdev = container_of(c, struct battery_chg_dev,
+						battery_class);
+	struct psy_state *pst = &bcdev->psy_list[PSY_TYPE_BATTERY];
+	int rc;
+
+	rc = read_property_id(bcdev, pst, BATT_CHG_FULL);
+	if (rc < 0)
+		return rc;
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", pst->prop[BATT_CHG_FULL]);
+}
+static CLASS_ATTR_RO(charge_full);
+
 static struct attribute *battery_class_attrs[] = {
 	&class_attr_soh.attr,
 	&class_attr_resistance.attr,
@@ -2338,7 +2372,9 @@ static struct attribute *battery_class_attrs[] = {
 	&class_attr_charge_control_en.attr,
 	&class_attr_battery_parallel_cell_count.attr,
 	&class_attr_cc_orientation.attr,
+	&class_attr_bat_id_adc.attr,
 	&class_attr_fac_suspend.attr,
+	&class_attr_charge_full.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(battery_class);
