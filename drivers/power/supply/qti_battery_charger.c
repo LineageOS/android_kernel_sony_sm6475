@@ -121,6 +121,8 @@ enum usb_property_id {
 	USB_SCOPE,
 	USB_CONNECTOR_TYPE,
 	F_ACTIVE,
+	USB_CC_ORIENTATION,
+	FAC_SUSPEND,
 	USB_PROP_MAX,
 };
 
@@ -277,6 +279,7 @@ struct battery_chg_dev {
 	u8				chg_ctrl_start_thr;
 	u8				chg_ctrl_end_thr;
 	bool				chg_ctrl_en;
+	int				fac_suspend;
 	/* To track the driver initialization status */
 	bool				initialized;
 	bool				notify_en;
@@ -2255,6 +2258,64 @@ static ssize_t battery_parallel_cell_count_show(const struct class *c,
 }
 static CLASS_ATTR_RO(battery_parallel_cell_count);
 
+static ssize_t cc_orientation_show(const struct class *c, const struct class_attribute *attr,
+				char *buf)
+{
+	int rc;
+
+	struct battery_chg_dev *bcdev = container_of(c, struct battery_chg_dev,
+						battery_class);
+	struct psy_state *pst = &bcdev->psy_list[PSY_TYPE_USB];
+
+	rc = read_property_id(bcdev, pst, USB_CC_ORIENTATION);
+	if (rc < 0)
+		return rc;
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", pst->prop[USB_CC_ORIENTATION]);
+}
+static CLASS_ATTR_RO(cc_orientation);
+
+static ssize_t fac_suspend_store(const struct class *c, const struct class_attribute *attr,
+                    const char *buf, size_t count)
+{
+	int val;
+	int rc;
+	struct battery_chg_dev *bcdev = container_of(c, struct battery_chg_dev, battery_class);
+	sscanf(buf, "%d", &val);
+	if (1 != val && 0 != val) { /* invalid input */
+		pr_err("%s:%d invalid input\n", __func__, __LINE__);
+		return sizeof(int);
+	}
+
+	bcdev->fac_suspend = val; /* get new status */
+
+	if (0 == bcdev->fac_suspend) { /* allow charging */
+		rc = write_property_id(bcdev, &bcdev->psy_list[PSY_TYPE_USB], FAC_SUSPEND, 0);
+		if (rc < 0) {
+			pr_err("%s:%d failed to write property", __func__, __LINE__);
+		}
+	} else { /* stop charging */
+		rc = write_property_id(bcdev, &bcdev->psy_list[PSY_TYPE_USB], FAC_SUSPEND, 1);
+		if (rc < 0) {
+			pr_err("%s:%d failed to write property", __func__, __LINE__);
+		}
+	}
+
+	pr_info("%s:%d store successful, current_status:%s\n", __func__,
+			__LINE__, bcdev->fac_suspend ? "Suspend charging" : "Unsuspend charging");
+	return count;
+}
+
+static ssize_t fac_suspend_show(const struct class *c, const struct class_attribute *attr, char *buf)
+{
+	struct battery_chg_dev *bcdev = container_of(c, struct battery_chg_dev, battery_class);
+
+	pr_info("%s:%d read successful, current_status:%s\n", __func__,
+			__LINE__, bcdev->fac_suspend ? "Suspend charging" : "Unsuspend charging");
+	return scnprintf(buf, PAGE_SIZE, "%d\n", bcdev->fac_suspend);
+}
+static CLASS_ATTR_RW(fac_suspend);
+
 static struct attribute *battery_class_attrs[] = {
 	&class_attr_soh.attr,
 	&class_attr_resistance.attr,
@@ -2276,6 +2337,8 @@ static struct attribute *battery_class_attrs[] = {
 	&class_attr_usb_typec_compliant.attr,
 	&class_attr_charge_control_en.attr,
 	&class_attr_battery_parallel_cell_count.attr,
+	&class_attr_cc_orientation.attr,
+	&class_attr_fac_suspend.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(battery_class);
