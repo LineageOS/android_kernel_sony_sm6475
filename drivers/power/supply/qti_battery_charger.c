@@ -509,6 +509,7 @@ static int get_property_id(struct psy_state *pst,
 	return -ENOENT;
 }
 
+#if 0
 static void battery_chg_notify_disable(struct battery_chg_dev *bcdev)
 {
 	struct battery_charger_set_notify_msg req_msg = { { 0 } };
@@ -527,6 +528,7 @@ static void battery_chg_notify_disable(struct battery_chg_dev *bcdev)
 			bcdev->notify_en = false;
 	}
 }
+#endif
 
 static void battery_chg_notify_enable(struct battery_chg_dev *bcdev)
 {
@@ -2438,9 +2440,14 @@ static int battery_chg_parse_dt(struct battery_chg_dev *bcdev)
 
 	rc = read_property_id(bcdev, pst, BATT_CHG_CTRL_LIM_MAX);
 	if (rc < 0) {
+		/* This process may fail depending on the timing.
+		 *  If this fails, the property will not be registered.
+		 *  Work around this issue by changing the return
+		 *  value from rc to -EPROBE_DEFER.
+		 */
 		pr_err("Failed to read prop BATT_CHG_CTRL_LIM_MAX, rc=%d\n",
 			rc);
-		return rc;
+		return -EPROBE_DEFER;
 	}
 
 	rc = of_property_count_elems_of_size(node, "qcom,thermal-mitigation",
@@ -2540,6 +2547,7 @@ static int battery_chg_reboot_notify(struct notifier_block *nb, unsigned long co
 	return NOTIFY_DONE;
 }
 
+#if 0
 static void panel_event_notifier_callback(enum panel_event_notifier_tag tag,
 			struct panel_event_notification *notification, void *data)
 {
@@ -2612,6 +2620,7 @@ static int battery_chg_register_panel_notifier(struct battery_chg_dev *bcdev)
 	bcdev->notifier_cookie = cookie;
 	return 0;
 }
+#endif
 
 static int
 battery_chg_get_max_charge_cntl_limit(struct thermal_cooling_device *tcd,
@@ -2650,6 +2659,48 @@ static const struct thermal_cooling_device_ops battery_tcd_ops = {
 	.set_cur_state = battery_chg_set_cur_charge_cntl_limit,
 };
 
+static ssize_t manufacturing_date_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n" , batt_info_manufacturing_date);
+}
+static ssize_t manufacturing_date_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t len)
+{
+	if (kstrtoint(buf, 0, &batt_info_manufacturing_date))
+		return -EINVAL;
+	return len;
+}
+static DEVICE_ATTR_RW(manufacturing_date);
+
+static ssize_t first_usage_date_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n" , batt_info_first_usage_date);
+}
+static ssize_t first_usage_date_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t len)
+{
+	if (kstrtoint(buf, 0, &batt_info_first_usage_date))
+		return -EINVAL;
+	return len;
+}
+static DEVICE_ATTR_RW(first_usage_date);
+
+static ssize_t state_of_health_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n" , batt_info_state_of_health);
+}
+static ssize_t state_of_health_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t len)
+{
+	if (kstrtoint(buf, 0, &batt_info_state_of_health))
+		return -EINVAL;
+	return len;
+}
+static DEVICE_ATTR_RW(state_of_health);
+
 static int battery_chg_probe(struct platform_device *pdev)
 {
 	struct battery_chg_dev *bcdev;
@@ -2659,6 +2710,7 @@ static int battery_chg_probe(struct platform_device *pdev)
 	struct psy_state *pst;
 	int rc, i;
 
+	pr_info("enter battery_chg_probe\n");
 	bcdev = devm_kzalloc(&pdev->dev, sizeof(*bcdev), GFP_KERNEL);
 	if (!bcdev)
 		return -ENOMEM;
@@ -2699,9 +2751,11 @@ static int battery_chg_probe(struct platform_device *pdev)
 	INIT_WORK(&bcdev->battery_check_work, battery_chg_check_status_work);
 	bcdev->dev = dev;
 
+#if 0
 	rc = battery_chg_register_panel_notifier(bcdev);
 	if (rc < 0)
 		return rc;
+#endif
 
 	client_data.id = MSG_OWNER_BC;
 	client_data.name = "battery_charger";
@@ -2745,6 +2799,10 @@ static int battery_chg_probe(struct platform_device *pdev)
 	if (rc < 0)
 		goto error;
 
+	device_create_file(&bcdev->psy_list[PSY_TYPE_BATTERY].psy->dev, &dev_attr_manufacturing_date);
+	device_create_file(&bcdev->psy_list[PSY_TYPE_BATTERY].psy->dev, &dev_attr_first_usage_date);
+	device_create_file(&bcdev->psy_list[PSY_TYPE_BATTERY].psy->dev, &dev_attr_state_of_health);
+
 	bcdev->battery_class.name = "qcom-battery";
 	bcdev->battery_class.class_groups = battery_class_groups;
 	rc = class_register(&bcdev->battery_class);
@@ -2774,6 +2832,8 @@ static int battery_chg_probe(struct platform_device *pdev)
 	rc = get_charge_control_en(bcdev);
 	if (rc < 0)
 		pr_debug("Failed to read charge_control_en, rc = %d\n", rc);
+
+	pr_info("battery_chg_probe success!!!\n");
 
 	return 0;
 error:
