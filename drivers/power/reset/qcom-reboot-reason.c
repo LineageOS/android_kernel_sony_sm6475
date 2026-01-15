@@ -29,12 +29,17 @@ struct poweroff_reason {
 };
 
 static struct poweroff_reason reasons[] = {
+	{ "poweroff",			0x00 },
 	{ "recovery",			0x01 },
 	{ "bootloader",			0x02 },
 	{ "rtc",			0x03 },
 	{ "dm-verity device corrupted",	0x04 },
 	{ "dm-verity enforcing",	0x05 },
 	{ "keys clear",			0x06 },
+	{ "normal",			0x07 },
+	{ "oem-50",			0x51 },
+	{ "oem-53",			0x60 },
+	{ "oem-4E",			0x61 },
 	{}
 };
 
