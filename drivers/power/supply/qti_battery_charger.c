@@ -58,12 +58,6 @@
 #define WLS_FW_BUF_SIZE			128
 #define DEFAULT_RESTRICT_FCC_UA		1000000
 
-static int batt_info_state_of_health = 0;
-static int batt_info_manufacturing_date = 0;
-static int batt_info_first_usage_date = 0;
-static int batt_info_cycle_count = 0;
-static int batt_info_charge_full = 0;
-
 enum psy_type {
 	PSY_TYPE_BATTERY,
 	PSY_TYPE_USB,
@@ -1428,14 +1422,6 @@ static int battery_psy_get_prop(struct power_supply *psy,
 
 	pval->intval = -ENODATA;
 
-	if (prop == POWER_SUPPLY_PROP_CYCLE_COUNT) {
-		pval->intval = batt_info_cycle_count;
-		return 0;
-	} else if (prop == POWER_SUPPLY_PROP_CHARGE_FULL) {
-		pval->intval = batt_info_charge_full;
-		return 0;
-	}
-
 	/*
 	 * The prop id of TIME_TO_FULL_NOW and TIME_TO_FULL_AVG is same.
 	 * So, map the prop id of TIME_TO_FULL_AVG for TIME_TO_FULL_NOW.
@@ -1484,12 +1470,6 @@ static int battery_psy_set_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
 		return battery_psy_set_charge_end_threshold(bcdev,
 								pval->intval);
-	case POWER_SUPPLY_PROP_CYCLE_COUNT:
-		batt_info_cycle_count = pval->intval;
-		return 0;
-	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		batt_info_charge_full = pval->intval;
-		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -1503,8 +1483,6 @@ static int battery_psy_prop_is_writeable(struct power_supply *psy,
 	switch (prop) {
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD:
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
-	case POWER_SUPPLY_PROP_CYCLE_COUNT:
-	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		return 1;
 	default:
 		break;
@@ -2684,48 +2662,6 @@ static const struct thermal_cooling_device_ops battery_tcd_ops = {
 	.set_cur_state = battery_chg_set_cur_charge_cntl_limit,
 };
 
-static ssize_t manufacturing_date_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	return scnprintf(buf, PAGE_SIZE, "%d\n" , batt_info_manufacturing_date);
-}
-static ssize_t manufacturing_date_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t len)
-{
-	if (kstrtoint(buf, 0, &batt_info_manufacturing_date))
-		return -EINVAL;
-	return len;
-}
-static DEVICE_ATTR_RW(manufacturing_date);
-
-static ssize_t first_usage_date_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	return scnprintf(buf, PAGE_SIZE, "%d\n" , batt_info_first_usage_date);
-}
-static ssize_t first_usage_date_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t len)
-{
-	if (kstrtoint(buf, 0, &batt_info_first_usage_date))
-		return -EINVAL;
-	return len;
-}
-static DEVICE_ATTR_RW(first_usage_date);
-
-static ssize_t state_of_health_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	return scnprintf(buf, PAGE_SIZE, "%d\n" , batt_info_state_of_health);
-}
-static ssize_t state_of_health_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t len)
-{
-	if (kstrtoint(buf, 0, &batt_info_state_of_health))
-		return -EINVAL;
-	return len;
-}
-static DEVICE_ATTR_RW(state_of_health);
-
 static int battery_chg_probe(struct platform_device *pdev)
 {
 	struct battery_chg_dev *bcdev;
@@ -2823,10 +2759,6 @@ static int battery_chg_probe(struct platform_device *pdev)
 	rc = battery_chg_init_psy(bcdev);
 	if (rc < 0)
 		goto error;
-
-	device_create_file(&bcdev->psy_list[PSY_TYPE_BATTERY].psy->dev, &dev_attr_manufacturing_date);
-	device_create_file(&bcdev->psy_list[PSY_TYPE_BATTERY].psy->dev, &dev_attr_first_usage_date);
-	device_create_file(&bcdev->psy_list[PSY_TYPE_BATTERY].psy->dev, &dev_attr_state_of_health);
 
 	bcdev->battery_class.name = "qcom-battery";
 	bcdev->battery_class.class_groups = battery_class_groups;
